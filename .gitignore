@@ -1,0 +1,41 @@
+# Ympäristö
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Tiedostopohjainen data (generoidaan dataputkessa)
+02_staging/data/
+03_bronze/data/
+04_silver/*.duckdb
+04_silver/*.duckdb.wal
+
+# dbt-generoidut
+06_transform/target/
+06_transform/dbt_packages/
+06_transform/logs/
+
+# Jupyter
+.ipynb_checkpoints/
+07_visualisation/*.png
+
+# Testit
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+build/
+dist/
+*.egg-info/

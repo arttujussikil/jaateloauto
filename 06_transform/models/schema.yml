@@ -1,0 +1,93 @@
+version: 2
+
+# ---------------------------------------------------------------------------
+# Silver-mallit (views)
+# ---------------------------------------------------------------------------
+
+models:
+  - name: dim_stations
+    description: Rautatieasemien perustiedot ja koordinaatit.
+    columns:
+      - name: station_code
+        description: Aseman lyhenne (esim. HKI)
+        tests: [not_null, unique]
+      - name: station_name
+        description: Aseman koko nimi suomeksi
+
+  - name: dim_trains
+    description: Junavuorojen perustiedot. Yksi rivi per juna per lähtöpäivä.
+    columns:
+      - name: train_key
+        description: Yksilöivä avain muodossa trainNumber_departureDate
+        tests: [not_null, unique]
+      - name: train_type
+        description: IC (InterCity), S (Pendolino), P (pikajuna), HL (lähijuna), jne.
+
+  - name: dim_date
+    description: Päivädimensio. Mahdollistaa ryhmittelyn viikonpäivän ja kuukauden mukaan.
+    columns:
+      - name: date_day
+        tests: [not_null, unique]
+
+  - name: fact_train_stops
+    description: >
+      Silver-kerroksen faktataulukko — yksi rivi per pysähdys per juna.
+      Rikastettu is_late-lippukentällä (VR:n 3 min täsmällisyyskriteeri).
+    columns:
+      - name: stop_id
+        description: Yksilöivä avain
+        tests: [not_null, unique]
+      - name: train_key
+        description: Viittaus dim_trains-tauluun
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_trains')
+              field: train_key
+      - name: station_code
+        description: Viittaus dim_stations-tauluun
+        tests: [not_null]
+      - name: stop_type
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['ARRIVAL', 'DEPARTURE']
+      - name: is_late
+        description: >
+          TRUE = myöhässä yli 3 minuuttia. NULL = tuleva pysähdys tai
+          actualTime puuttuu.
+
+# ---------------------------------------------------------------------------
+# Gold-mallit (taulut)
+# ---------------------------------------------------------------------------
+
+  - name: gold_station_punctuality
+    description: >
+      Asemittainen täsmällisyysraportti. Sisältää vain asemat joilla on
+      vähintään 10 pysähdystä tarkasteluajanjakson aikana.
+
+      Käyttöesimerkki:
+        SELECT station_name, punctuality_pct, avg_delay_minutes
+        FROM gold.gold_station_punctuality
+        ORDER BY punctuality_pct ASC LIMIT 10;
+    columns:
+      - name: station_code
+        tests: [not_null, unique]
+      - name: punctuality_pct
+        description: Täsmällisyysprosentti 0-100
+      - name: stop_count
+        description: Kokonaispysähdysten määrä analyysiajanjaksolla
+      - name: avg_delay_minutes
+        description: Myöhässä olleiden junien keskimääräinen myöhästyminen (min)
+
+  - name: gold_daily_punctuality
+    description: >
+      Päivittäinen täsmällisyyskehitys koko rataverkolla.
+      Sopii trendiviivakuvaajan pohjaksi.
+    columns:
+      - name: departure_date
+        tests: [not_null, unique]
+      - name: punctuality_pct
+        description: Päivän täsmällisyysprosentti (kaikki kaupalliset saapumiset)
+      - name: total_trains
+        description: Päivän junien kokonaismäärä

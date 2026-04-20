@@ -1,0 +1,48 @@
+version: 2
+
+# ---------------------------------------------------------------------------
+# Sources — raw-skeeman taulut, jotka Python-skriptit täyttävät
+# ---------------------------------------------------------------------------
+# Nämä ovat dbt:n näkökulmasta "ulkoista" dataa. dbt ei luo tai muokkaa niitä,
+# vaan lukee ja luo uudet taulut silver- ja gold-skeemoihin.
+
+sources:
+  - name: raw
+    description: >
+      Raaka tähtimalli DuckDB:ssä. Python-skripti `04_silver/silver.py`
+      kirjoittaa tänne bronze-Parquet-tiedostoista.
+    schema: raw
+    tables:
+      - name: raw_fact_train_stops
+        description: >
+          Pysähdysfaktat raaka-muodossa. Yksi rivi per pysähdys.
+        columns:
+          - name: stop_id
+            description: Yksilöivä avain (trainKey_stationCode_type)
+            tests:
+              - not_null
+              - unique
+          - name: stop_type
+            description: ARRIVAL tai DEPARTURE
+            tests:
+              - not_null
+              - accepted_values:
+                  values: ['ARRIVAL', 'DEPARTURE']
+
+      - name: raw_dim_stations
+        description: Asemien metatiedot
+        columns:
+          - name: station_code
+            tests: [not_null, unique]
+
+      - name: raw_dim_trains
+        description: Junavuorojen perustiedot
+        columns:
+          - name: train_key
+            tests: [not_null, unique]
+
+      - name: raw_dim_date
+        description: Päivädimensio
+        columns:
+          - name: date_day
+            tests: [not_null, unique]

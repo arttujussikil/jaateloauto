@@ -1,0 +1,7 @@
+vr_data_platform:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: '../04_silver/vr_warehouse.duckdb'
+      threads: 4
