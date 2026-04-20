@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import requests
 import streamlit as st
 from pathlib import Path
 
@@ -76,6 +77,65 @@ def load_station_daily(_conn, station_code: str) -> pd.DataFrame:
     """).df()
 
 
+LIVE_LOCATIONS_API = "https://rata.digitraffic.fi/api/v1/train-locations/latest/"
+LIVE_TRAINS_API = "https://rata.digitraffic.fi/api/v1/trains/{date}"
+
+
+@st.cache_data(ttl=86400)
+def load_station_names(_conn) -> dict:
+    df = _conn.execute("""
+        SELECT DISTINCT station_code, station_name
+        FROM gold.gold_station_punctuality
+    """).df()
+    return dict(zip(df["station_code"], df["station_name"]))
+
+
+def load_live_trains(station_names: dict) -> pd.DataFrame:
+    try:
+        today = pd.Timestamp.now().strftime("%Y-%m-%d")
+        loc_resp = requests.get(LIVE_LOCATIONS_API, timeout=10, headers={"Accept-Encoding": "gzip"})
+        loc_resp.raise_for_status()
+        train_resp = requests.get(LIVE_TRAINS_API.format(date=today), timeout=15, headers={"Accept-Encoding": "gzip"})
+        train_resp.raise_for_status()
+
+        train_meta = {}
+        for t in train_resp.json():
+            tt_rows = t.get("timeTableRows", [])
+            origin_code = tt_rows[0]["stationShortCode"] if tt_rows else ""
+            last = tt_rows[-1] if tt_rows else {}
+            dest_code = last.get("stationShortCode", "")
+            sched = last.get("scheduledTime", "")
+            if sched:
+                sched = pd.Timestamp(sched).tz_convert("Europe/Helsinki").strftime("%H:%M")
+            train_meta[t["trainNumber"]] = {
+                "type": t.get("trainType", ""),
+                "origin": station_names.get(origin_code, origin_code),
+                "destination": station_names.get(dest_code, dest_code),
+                "arrival": sched,
+            }
+
+        rows = []
+        for t in loc_resp.json():
+            num = t.get("trainNumber")
+            coords = t.get("location", {}).get("coordinates", [None, None])
+            meta = train_meta.get(num, {})
+            train_type = meta.get("type", "")
+            label = f"{train_type}{num}" if train_type else str(num)
+            rows.append({
+                "Juna": label,
+                "Nopeus (km/h)": t.get("speed"),
+                "Lähtöasema": meta.get("origin", ""),
+                "Määränpää": meta.get("destination", ""),
+                "Saapuu": meta.get("arrival", ""),
+                "lat": coords[1],
+                "lon": coords[0],
+            })
+        return pd.DataFrame(rows).dropna(subset=["lat", "lon"])
+    except Exception as e:
+        st.error(f"Virhe haettaessa live-dataa: {e}")
+        return pd.DataFrame()
+
+
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 
 with st.sidebar:
@@ -94,6 +154,7 @@ conn = get_conn()
 daily_df = load_daily(conn, late_threshold)
 station_df = load_stations(conn, min_stops)
 delay_df = load_delays(conn)
+station_names = load_station_names(conn)
 
 # ── KPI-kortit ───────────────────────────────────────────────────────────────
 
@@ -116,8 +177,8 @@ st.divider()
 
 # ── Välilehdet ────────────────────────────────────────────────────────────────
 
-tab_map, tab_daily, tab_stations, tab_dist, tab_station = st.tabs([
-    "🗺️ Kartta", "📅 Päivittäinen", "🏢 Asemat", "📊 Jakauma", "🔍 Asema-analyysi"
+tab_map, tab_daily, tab_stations, tab_dist, tab_station, tab_live = st.tabs([
+    "🗺️ Kartta", "📅 Päivittäinen", "🏢 Asemat", "📊 Jakauma", "🔍 Asema-analyysi", "🔴 Live"
 ])
 
 
@@ -258,7 +319,7 @@ with tab_stations:
                 "avg_delay_minutes": "Keskim. myöhästyminen",
                 "stop_count": "Pysähdyksiä",
             },
-            title=f"✅ {top_n} täsmällisintä",
+            title=f"✅ {top_n} Eniten täsmällisintä",
         )
         fig_best.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
         fig_best.update_layout(coloraxis_showscale=False, height=400,
@@ -282,7 +343,7 @@ with tab_stations:
                 "avg_delay_minutes": "Keskim. myöhästyminen",
                 "stop_count": "Pysähdyksiä",
             },
-            title=f"❌ {top_n} epätäsmällisintä",
+            title=f"❌ {top_n} Vähiten täsmällisintä",
         )
         fig_worst.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
         fig_worst.update_layout(coloraxis_showscale=False, height=400,
@@ -391,3 +452,71 @@ with tab_station:
         )
         fig_s.update_layout(height=450, showlegend=False, hovermode="x unified")
         st.plotly_chart(fig_s, use_container_width=True)
+
+
+# ── Live-seuranta ─────────────────────────────────────────────────────────────
+
+with tab_live:
+    st.subheader("Junien sijaintitiedot reaaliajassa")
+    st.caption("Datalähde: Digitraffic / Fintraffic · Päivitä manuaalisesti alla olevalla napilla")
+
+    if "live_df" not in st.session_state:
+        st.session_state.live_df = pd.DataFrame()
+        st.session_state.live_fetched_at = None
+
+    col_btn, col_filter = st.columns([1, 3])
+    with col_btn:
+        refresh = st.button("🔄 Päivitä sijainnit")
+    with col_filter:
+        hide_stationary = st.checkbox("Piilota pysähtyneet junat (0 km/h)", value=True)
+
+    if refresh:
+        st.session_state.live_df = load_live_trains(station_names)
+        st.session_state.live_fetched_at = pd.Timestamp.now()
+
+    live_df = st.session_state.live_df
+
+    if live_df.empty:
+        st.info("Paina **Päivitä sijainnit** ladataksesi junat kartalle.")
+    else:
+        display_df = live_df[live_df["Nopeus (km/h)"] > 0] if hide_stationary else live_df
+        fetched_at = st.session_state.live_fetched_at.strftime("%H:%M:%S")
+        st.caption(f"{len(display_df)} junaa kartalla · haettu {fetched_at}")
+
+        fig_live = go.Figure(go.Scattermapbox(
+            lat=display_df["lat"],
+            lon=display_df["lon"],
+            mode="markers",
+            text=display_df["Juna"],
+            customdata=display_df[["Nopeus (km/h)", "Lähtöasema", "Määränpää", "Saapuu"]],
+            hovertemplate=(
+                "<b>%{text}</b><br>"
+                "Nopeus: %{customdata[0]} km/h<br>"
+                "Lähtöasema: %{customdata[1]}<br>"
+                "Määränpää: %{customdata[2]} (saa. %{customdata[3]})<extra></extra>"
+            ),
+            marker=dict(
+                size=10,
+                color=display_df["Nopeus (km/h)"],
+                colorscale=["#3498db", "#2ecc71", "#e74c3c"],
+                cmin=0,
+                cmax=200,
+                colorbar=dict(title="Nopeus km/h"),
+            ),
+            cluster=dict(
+                enabled=True,
+                maxzoom=7,
+                color="#e67e22",
+                size=20,
+                step=-1,
+            ),
+        ))
+
+        fig_live.update_layout(
+            mapbox_style="carto-positron",
+            mapbox_zoom=5,
+            mapbox_center={"lat": 64.5, "lon": 26.0},
+            height=640,
+            margin={"r": 0, "t": 0, "l": 0, "b": 0},
+        )
+        st.plotly_chart(fig_live, use_container_width=True)

@@ -8,6 +8,7 @@ Vastata kysymyksiin kuten:
 - Milloin junat ovat tyypillisesti asemalla?
 - Kuinka paljon junia myöhästelee, ja millä asemilla?
 - Mikä on täsmällisyystilanne eri reiteillä?
+- Missä junat ovat juuri nyt?
 
 ## Arkkitehtuuri
 
@@ -80,6 +81,28 @@ erDiagram
 ```
 
 Gold-kerroksen aggregaattitaulut (`gold_station_punctuality`, `gold_daily_punctuality`) on kuvattu [05_gold/README.md](05_gold/README.md):ssä.
+
+## Streamlit-dashboard
+
+Dashboard (`07_visualisation/app.py`) sisältää seuraavat välilehdet:
+
+| Välilehti | Sisältö |
+|-----------|---------|
+| 🗺️ Kartta | Asemien täsmällisyys kartalla (koko = pysähdysmäärä, väri = täsmällisyys-%) |
+| 📅 Päivittäinen | Täsmällisyys- ja myöhästymistrendit päivittäin |
+| 🏢 Asemat | Top/bottom N täsmällisintä asemaa |
+| 📊 Jakauma | Myöhästymisjakauma ja kumulatiivinen käyrä |
+| 🔍 Asema-analyysi | Yksittäisen aseman aikasarjaanalyysi |
+| 🔴 Live | Junien reaaliaikaiset sijainnit kartalla |
+
+### Live-välilehti
+
+Hakee reaaliaikaiset sijaintitiedot suoraan Digitraffic-rajapinnasta napin painalluksella — ei vaadi muutoksia dataputkeen.
+
+- Näyttää junan nimen (esim. IC29, S14), nopeuden, lähtöaseman, määränpään ja aikataulun mukaisen saapumisajan
+- Lähellä toisiaan olevat junat ryhmittyvät klusteriksi zoomatessa ulos, ja erkaantuvat zoomatessa sisään
+- Pysähtyneet junat (0 km/h) voi piilottaa valintaruudulla
+- Pisteiden väri kertoo nopeuden (sininen = hidas → punainen = nopea)
 
 ## Pikaohje
 
