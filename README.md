@@ -118,7 +118,7 @@ python 03_bronze/bronze.py
 cd 06_transform
 dbt run
 dbt test
-dbt docs generate && dbt docs serve  # avaa dokumentaatio selaimeen
+dbt docs generate && dbt docs serve --port 8085  # avaa dokumentaatio selaimeen
 
 # Vaihe 4: Visualisointi
 jupyter notebook 07_visualisation/analysis.ipynb
@@ -159,7 +159,7 @@ Lisenssi: [Creative Commons Attribution 4.0](https://creativecommons.org/license
 
 ## dbt-dokumentaatio
 
-Aja `cd 06_transform && dbt docs generate && dbt docs serve` — avautuu osoitteeseen `http://localhost:8080`.
+Aja `cd 06_transform && dbt docs generate && dbt docs serve --port 8085` — avautuu osoitteeseen `http://localhost:8085`.
 
 ## Tuki ja kehitysehdotukset
 

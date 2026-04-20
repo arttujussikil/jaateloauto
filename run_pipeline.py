@@ -101,7 +101,7 @@ def main() -> None:
                 "\n✓ Kaikki vaiheet onnistuivat!\n"
                 "Aja seuraavaksi dbt:\n"
                 "  cd 06_transform && dbt run && dbt test\n"
-                "  dbt docs generate && dbt docs serve"
+                "  dbt docs generate && dbt docs serve --port 8085"
             )
 
     sys.exit(0 if success else 1)
