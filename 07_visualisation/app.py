@@ -5,8 +5,11 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import folium
+from folium.plugins import MarkerCluster
 import requests
 import streamlit as st
+from streamlit_folium import st_folium
 from pathlib import Path
 
 DUCKDB_PATH = Path(__file__).parent.parent / "04_silver" / "vr_warehouse.duckdb"
@@ -483,40 +486,29 @@ with tab_live:
         fetched_at = st.session_state.live_fetched_at.strftime("%H:%M:%S")
         st.caption(f"{len(display_df)} junaa kartalla · haettu {fetched_at}")
 
-        fig_live = go.Figure(go.Scattermapbox(
-            lat=display_df["lat"],
-            lon=display_df["lon"],
-            mode="markers",
-            text=display_df["Juna"],
-            customdata=display_df[["Nopeus (km/h)", "Lähtöasema", "Määränpää", "Saapuu"]],
-            hovertemplate=(
-                "<b>%{text}</b><br>"
-                "Nopeus: %{customdata[0]} km/h<br>"
-                "Lähtöasema: %{customdata[1]}<br>"
-                "Määränpää: %{customdata[2]} (saa. %{customdata[3]})<extra></extra>"
-            ),
-            marker=dict(
-                size=10,
-                color=display_df["Nopeus (km/h)"],
-                colorscale=["#3498db", "#2ecc71", "#e74c3c"],
-                cmin=0,
-                cmax=200,
-                colorbar=dict(title="Nopeus km/h"),
-            ),
-            cluster=dict(
-                enabled=True,
-                maxzoom=7,
-                color="#e67e22",
-                size=20,
-                step=-1,
-            ),
-        ))
+        def speed_color(kmh):
+            if kmh is None or kmh < 60:
+                return "blue"
+            if kmh < 140:
+                return "green"
+            return "red"
 
-        fig_live.update_layout(
-            mapbox_style="carto-positron",
-            mapbox_zoom=5,
-            mapbox_center={"lat": 64.5, "lon": 26.0},
-            height=640,
-            margin={"r": 0, "t": 0, "l": 0, "b": 0},
+        m = folium.Map(location=[64.5, 26.0], zoom_start=5, tiles="CartoDB positron")
+        mc = MarkerCluster(
+            options={"zoomToBoundsOnClick": True, "maxClusterRadius": 50}
         )
-        st.plotly_chart(fig_live, use_container_width=True)
+        for _, row in display_df.iterrows():
+            popup_html = (
+                f"<b>{row['Juna']}</b><br>"
+                f"Nopeus: {row['Nopeus (km/h)']} km/h<br>"
+                f"Lähtöasema: {row['Lähtöasema']}<br>"
+                f"Määränpää: {row['Määränpää']} (saa. {row['Saapuu']})"
+            )
+            folium.Marker(
+                location=[row["lat"], row["lon"]],
+                icon=folium.Icon(icon="train", prefix="fa", color=speed_color(row["Nopeus (km/h)"])),
+                popup=folium.Popup(popup_html, max_width=220),
+                tooltip=row["Juna"],
+            ).add_to(mc)
+        mc.add_to(m)
+        st_folium(m, height=640, use_container_width=True)
