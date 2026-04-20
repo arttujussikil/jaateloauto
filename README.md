@@ -30,7 +30,7 @@ VR API (rata.digitraffic.fi)
   05_gold/           ← DuckDB + dbt: aggregaatit loppukäyttäjälle
         │
         ▼
-  07_visualisation/  ← Jupyter Notebook: kaaviot ja analyysi
+  07_visualisation/  ← Streamlit-dashboard + Jupyter Notebook
 ```
 
 ## Tietomalli (silver-kerros)
@@ -120,7 +120,11 @@ dbt run
 dbt test
 dbt docs generate && dbt docs serve --port 8085  # avaa dokumentaatio selaimeen
 
-# Vaihe 4: Visualisointi
+# Vaihe 4: Käynnistä dashboard
+uv run streamlit run 07_visualisation/app.py
+# → Avautuu osoitteeseen http://localhost:8501
+
+# Vaihtoehtoisesti: Jupyter Notebook
 jupyter notebook 07_visualisation/analysis.ipynb
 ```
 
@@ -142,14 +146,14 @@ pytest --cov=. --cov-report=html
 | `04_silver/` | Puhdistettu data, tähtimalli, DuckDB |
 | `05_gold/` | Aggregaatit, valmiit kyselyt |
 | `06_transform/` | dbt-projekti (mallit, testit, dokumentaatio) |
-| `07_visualisation/` | Jupyter Notebook |
+| `07_visualisation/` | Streamlit-dashboard (`app.py`) + Jupyter Notebook |
 | `tests/` | Yksikkötestit (pytest) |
 | `docs/` | Lisädokumentaatio |
 
 ## Riippuvuudet
 
 Kaikki riippuvuudet löytyvät `pyproject.toml`-tiedostosta.  
-Lyhyesti: `requests`, `polars`, `duckdb`, `dbt-duckdb`, `jupyter`, `matplotlib`, `seaborn`, `ipywidgets`.
+Lyhyesti: `requests`, `polars`, `duckdb`, `dbt-duckdb`, `streamlit`, `plotly`, `jupyter`, `matplotlib`, `seaborn`, `ipywidgets`.
 
 ## Datalähde ja lisenssi
 
