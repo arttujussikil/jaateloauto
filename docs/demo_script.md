@@ -96,7 +96,7 @@ LIMIT 5;
 Avaa `07_visualisation/analysis.ipynb` Jupyterissa.
 
 1. Näytä **päivittäinen täsmällisyyskaavio** — selitä mikä on VR:n 3 min raja
-2. Näytä **dropdown-widget** — valitse asema, näytä päivittäinen trendi
+2. Näytä **pudotusvalikko** — valitse asema, näytä päivittäinen trendi
    > "Loppukäyttäjä voi itse valita aseman pudotusvalikosta. Ei vaadi Python-osaamista."
 
 ---

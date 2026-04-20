@@ -33,6 +33,54 @@ VR API (rata.digitraffic.fi)
   07_visualisation/  ← Jupyter Notebook: kaaviot ja analyysi
 ```
 
+## Tietomalli (silver-kerros)
+
+DuckDB:n tähtimalli — `fact_train_stops` yhdistää kaikki dimensiot.
+
+```mermaid
+erDiagram
+    fact_train_stops {
+        varchar stop_id PK
+        varchar train_key FK
+        varchar station_code FK
+        date departure_date FK
+        varchar stop_type
+        timestamptz scheduled_time
+        timestamptz actual_time
+        integer difference_minutes
+        boolean is_late
+        boolean cancelled
+        boolean commercial_stop
+    }
+    dim_trains {
+        varchar train_key PK
+        integer train_number
+        varchar train_type
+        varchar train_category
+        varchar operator
+        boolean cancelled
+    }
+    dim_stations {
+        varchar station_code PK
+        varchar station_name
+        double latitude
+        double longitude
+    }
+    dim_date {
+        date date_day PK
+        integer year
+        integer month
+        integer day_of_week
+        varchar day_name
+        boolean is_weekend
+    }
+    fact_train_stops }o--|| dim_trains : "train_key"
+    fact_train_stops }o--|| dim_stations : "station_code"
+    fact_train_stops }o--|| dim_date : "departure_date"
+```
+
+Gold-kerroksen aggregaattitaulut (`gold_station_punctuality`, `gold_daily_punctuality`) on kuvattu [05_gold/README.md](05_gold/README.md):ssä.
+
 ## Pikaohje
 
 ### 1. Asennus
@@ -42,13 +90,12 @@ VR API (rata.digitraffic.fi)
 git clone <repo-url>
 cd vr-data-platform
 
-# Luo virtuaaliympäristö
-python -m venv .venv
+# Luo virtuaaliympäristö ja asenna riippuvuudet yhdellä komennolla
+uv sync --extra dev
+
+# Aktivoi ympäristö
 source .venv/bin/activate        # Linux/Mac
 # .venv\Scripts\activate         # Windows
-
-# Asenna riippuvuudet
-pip install -e ".[dev]"
 ```
 
 ### 2. Ympäristömuuttujat

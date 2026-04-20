@@ -21,7 +21,7 @@ Käyttö:
     python 01_fetch/fetch_trains.py --days-back 14
 
 Vaatimukset:
-    pip install requests python-dotenv
+    uv sync --extra dev
 
 Datalähde:
     https://rata.digitraffic.fi/api/v1/trains/{departure_date}

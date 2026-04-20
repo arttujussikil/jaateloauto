@@ -22,7 +22,7 @@ Käyttö:
     python 04_silver/silver.py
 
 Vaatimukset:
-    pip install duckdb polars python-dotenv
+    uv sync --extra dev
 """
 
 import logging

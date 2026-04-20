@@ -26,7 +26,7 @@ Käyttö:
     python 03_bronze/bronze.py --all
 
 Vaatimukset:
-    pip install polars python-dotenv
+    uv sync --extra dev
 """
 
 import argparse
