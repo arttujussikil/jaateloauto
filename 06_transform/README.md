@@ -44,7 +44,7 @@ dbt test
 
 # Generoi ja avaa dokumentaatio selaimessa
 dbt docs generate
-dbt docs serve   # → http://localhost:8080
+dbt docs serve --port 8085   # → http://localhost:8085
 ```
 
 ## Yhteyden konfigurointi
