@@ -234,7 +234,7 @@ with tab_daily:
 # ── Asemat ────────────────────────────────────────────────────────────────────
 
 with tab_stations:
-    st.subheader(f"Top {top_n} täsmällisimmät ja epätäsmällisimmät asemat")
+    st.subheader(f" {top_n} täsmällisintä ja vähiten täsmällisintä asemaa")
 
     best = station_df.head(top_n)
     worst = station_df.tail(top_n).sort_values("punctuality_pct")
