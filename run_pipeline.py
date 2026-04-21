@@ -2,7 +2,7 @@
 """
 run_pipeline.py
 ===============
-Koko dataputken orkestraattori: hakee datan API:sta ja ajaa kaikki
+Hakee datan API:sta ja ajaa kaikki
 muunnokset loppuun asti.
 
 Käyttö:
@@ -16,11 +16,11 @@ Käyttö:
     python run_pipeline.py --only fetch
     python run_pipeline.py --only bronze
     python run_pipeline.py --only silver
+    python run_pipeline.py --only gold
+    python run_pipeline.py --only visualisation
 
-Huomio dbt:stä:
-    dbt-vaihe (silver → gold) ajetaan erillisellä komennolla:
-        cd 06_transform && dbt run && dbt test
-    Tämä johtuu siitä, että dbt hallinnoi omaa ympäristöään.
+    # Käynnistä dashboard putken jälkeen:
+    python run_pipeline.py --visualise
 """
 
 import argparse
@@ -67,17 +67,45 @@ def run_step(name: str, script: Path, extra_args: list[str] = None) -> bool:
     return True
 
 
+def run_dbt() -> bool:
+    """Ajaa dbt run + dbt test 06_transform-hakemistossa."""
+    dbt_dir = ROOT / "06_transform"
+    log.info("=== Vaihe: gold (dbt) ===")
+    for dbt_cmd in (["dbt", "run"], ["dbt", "test"]):
+        log.info("Komento: %s", " ".join(dbt_cmd))
+        result = subprocess.run(dbt_cmd, cwd=dbt_dir, shell=True)
+        if result.returncode != 0:
+            log.error("dbt-komento '%s' epäonnistui (exit code %d)", " ".join(dbt_cmd), result.returncode)
+            return False
+    log.info("Vaihe 'gold' valmis.")
+    return True
+
+
+def run_visualisation() -> bool:
+    """Käynnistää Streamlit-dashboardin."""
+    app = ROOT / "07_visualisation" / "app.py"
+    log.info("=== Vaihe: visualisation ===")
+    log.info("Käynnistetään Streamlit: streamlit run %s", app)
+    result = subprocess.run(["streamlit", "run", str(app)], cwd=ROOT, shell=True)
+    return result.returncode == 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Aja VR-dataputki.")
     parser.add_argument("--days-back", type=int, default=7)
     parser.add_argument(
         "--only",
-        choices=["fetch", "bronze", "silver"],
+        choices=["fetch", "bronze", "silver", "gold", "visualisation"],
         help="Aja vain tietty vaihe",
+    )
+    parser.add_argument(
+        "--visualise",
+        action="store_true",
+        help="Käynnistä Streamlit-dashboard putken jälkeen",
     )
     args = parser.parse_args()
 
-    steps = {
+    python_steps = {
         "fetch": (
             ROOT / "01_fetch" / "fetch_trains.py",
             ["--days-back", str(args.days_back)],
@@ -86,23 +114,27 @@ def main() -> None:
         "silver": (ROOT / "04_silver" / "silver.py", []),
     }
 
-    if args.only:
-        script, extra = steps[args.only]
+    if args.only == "gold":
+        success = run_dbt()
+    elif args.only == "visualisation":
+        success = run_visualisation()
+    elif args.only:
+        script, extra = python_steps[args.only]
         success = run_step(args.only, script, extra)
     else:
         success = True
-        for step_name, (script, extra) in steps.items():
+        for step_name, (script, extra) in python_steps.items():
             if not run_step(step_name, script, extra):
                 success = False
                 break
 
         if success:
-            log.info(
-                "\n✓ Kaikki vaiheet onnistuivat!\n"
-                "Aja seuraavaksi dbt:\n"
-                "  cd 06_transform && dbt run && dbt test\n"
-                "  dbt docs generate && dbt docs serve --port 8085"
-            )
+            success = run_dbt()
+
+        if success:
+            log.info("✓ Kaikki vaiheet onnistuivat!")
+            if args.visualise:
+                run_visualisation()
 
     sys.exit(0 if success else 1)
 
