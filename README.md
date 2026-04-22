@@ -89,7 +89,7 @@ Dashboard (`07_visualisation/app.py`) sisältää seuraavat välilehdet:
 | Välilehti | Sisältö |
 |-----------|---------|
 | 🗺️ Kartta | Asemien täsmällisyys kartalla (koko = pysähdysmäärä, väri = täsmällisyys-%) |
-| 📅 Päivittäinen | Täsmällisyys- ja myöhästymistrendit päivittäin |
+| 📅 Päivittäinen | Täsmällisyys- ja myöhästymistrendit päivittäin + junamäärä viikonpäivittäin |
 | 🏢 Asemat | Top/bottom N täsmällisintä asemaa |
 | 📊 Jakauma | Myöhästymisjakauma ja kumulatiivinen käyrä |
 | 🔍 Asema-analyysi | Yksittäisen aseman aikasarjaanalyysi |
@@ -130,24 +130,32 @@ cp .env.example .env
 
 ### 3. Aja dataputki
 
+Suositeltava tapa — `run_pipeline.py` ajaa kaikki vaiheet järjestyksessä:
+
 ```bash
-# Vaihe 1: Hae data API:sta → staging
-python 01_fetch/fetch_trains.py
+# Viimeiset 7 päivää (oletus)
+python run_pipeline.py
 
-# Vaihe 2: Bronze-muunnos
-python 03_bronze/bronze.py
+# Kuukauden data + avaa dashboard automaattisesti
+python run_pipeline.py --days-back 30 --visualise
 
-# Vaihe 3: Silver + Gold (dbt)
-cd 06_transform
-dbt run
-dbt test
-dbt docs generate && dbt docs serve --port 8085  # avaa dokumentaatio selaimeen
+# Vain tietty vaihe
+python run_pipeline.py --only fetch
+python run_pipeline.py --only gold
+```
 
-# Vaihe 4: Käynnistä dashboard
+Tai manuaalisesti vaihe kerrallaan:
+
+```bash
+python 01_fetch/fetch_trains.py --days-back 30
+python 03_bronze/bronze.py --all
+cd 06_transform && dbt run && dbt test
 uv run streamlit run 07_visualisation/app.py
-# → Avautuu osoitteeseen http://localhost:8501
+```
 
-# Vaihtoehtoisesti: Jupyter Notebook
+Jupyter Notebook:
+
+```bash
 jupyter notebook 07_visualisation/analysis.ipynb
 ```
 
@@ -177,6 +185,13 @@ pytest --cov=. --cov-report=html
 
 Kaikki riippuvuudet löytyvät `pyproject.toml`-tiedostosta.  
 Lyhyesti: `requests`, `polars`, `duckdb`, `dbt-duckdb`, `streamlit`, `plotly`, `jupyter`, `matplotlib`, `seaborn`, `ipywidgets`.
+
+## Huomioita API-käytöstä
+
+- `Digitraffic-User`-otsikko on pakollinen 1.12.2024 alkaen (asetetaan automaattisesti)
+- Fetch-skripti odottaa 0,5 s pyyntöjen välissä
+- 429 Too Many Requests -virheeseen reagoidaan automaattisesti: 3 uudelleenyritystä odotuksilla 5 s → 10 s → 15 s
+- Staging-tiedostot välimuistitetaan (TTL 14 pv) — jo haettujen päivien tietoja ei haeta uudelleen
 
 ## Datalähde ja lisenssi
 

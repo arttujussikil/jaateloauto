@@ -294,6 +294,60 @@ with tab_daily:
 
     st.caption("🔵 Viikonloppu · 🔴 Arkipäivä")
 
+    st.subheader("Junamäärä viikonpäivittäin")
+    st.caption("Selittääkö suurempi junamäärä perjantain myöhästymiset?")
+
+    weekday_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    weekday_fi = {
+        "Monday": "Maanantai", "Tuesday": "Tiistai", "Wednesday": "Keskiviikko",
+        "Thursday": "Torstai", "Friday": "Perjantai", "Saturday": "Lauantai", "Sunday": "Sunnuntai",
+    }
+
+    weekday_df = (
+        daily_df.groupby("day_name", as_index=False)
+        .agg(total_trains=("total_trains", "sum"), avg_punctuality=("punctuality_pct", "mean"),
+             is_weekend=("is_weekend", "first"))
+        .assign(day_name=lambda d: pd.Categorical(d["day_name"], categories=weekday_order, ordered=True))
+        .sort_values("day_name")
+    )
+    weekday_df["label"] = weekday_df["day_name"].map(weekday_fi)
+    weekday_df["color"] = weekday_df["is_weekend"].map({True: "#5bc0de", False: "#e67e22"})
+
+    fig_wk = make_subplots(
+        rows=1, cols=2,
+        subplot_titles=("Junavuoroja yhteensä", "Täsmällisyys (%)"),
+    )
+    fig_wk.add_trace(
+        go.Bar(
+            x=weekday_df["label"], y=weekday_df["total_trains"],
+            marker_color=weekday_df["color"],
+            text=weekday_df["total_trains"],
+            textposition="outside",
+            hovertemplate="%{x}<br>Junavuoroja: %{y:,}<extra></extra>",
+            name="Junavuoroja",
+        ),
+        row=1, col=1,
+    )
+    fig_wk.add_trace(
+        go.Bar(
+            x=weekday_df["label"], y=weekday_df["avg_punctuality"].round(1),
+            marker_color=weekday_df["color"],
+            text=weekday_df["avg_punctuality"].round(1),
+            texttemplate="%{text:.1f}%",
+            textposition="outside",
+            hovertemplate="%{x}<br>Täsmällisyys: %{y:.1f}%<extra></extra>",
+            name="Täsmällisyys",
+        ),
+        row=1, col=2,
+    )
+    fig_wk.add_hline(y=90, line_dash="dash", line_color="#2ecc71",
+                     annotation_text="Tavoite 90%", row=1, col=2)
+    fig_wk.update_yaxes(title_text="Junavuoroja", row=1, col=1)
+    fig_wk.update_yaxes(title_text="Täsmällisyys (%)", range=[0, 110], row=1, col=2)
+    fig_wk.update_layout(height=380, showlegend=False)
+    st.plotly_chart(fig_wk, width='stretch')
+    st.caption("🔵 Viikonloppu · 🟠 Arkipäivä")
+
 
 # ── Asemat ────────────────────────────────────────────────────────────────────
 

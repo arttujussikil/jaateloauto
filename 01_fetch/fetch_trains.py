@@ -281,16 +281,25 @@ def fetch_date_range(
         if file_is_fresh(filepath, STAGING_TTL_DAYS):
             log.info("Ohitetaan %s — tiedosto on tuore.", current)
         else:
-            try:
-                trains = client.get_trains_by_date(current)
-                save_to_staging(trains, filepath)
-                # Kohteliaisuusviive — ei rasiteta rajapintaa turhaan
-                time.sleep(REQUEST_DELAY_SECONDS)
-            except requests.HTTPError as e:
-                log.error("HTTP-virhe päivälle %s: %s", current, e)
-            except requests.ConnectionError as e:
-                log.error("Yhteysvirhe: %s", e)
-                sys.exit(1)
+            for attempt in range(1, 4):
+                try:
+                    trains = client.get_trains_by_date(current)
+                    save_to_staging(trains, filepath)
+                    time.sleep(REQUEST_DELAY_SECONDS)
+                    break
+                except requests.HTTPError as e:
+                    if e.response is not None and e.response.status_code == 429:
+                        wait = 5 * attempt
+                        log.warning("429 rate limit päivälle %s — odotetaan %ds (yritys %d/3)", current, wait, attempt)
+                        time.sleep(wait)
+                    else:
+                        log.error("HTTP-virhe päivälle %s: %s", current, e)
+                        break
+                except requests.ConnectionError as e:
+                    log.error("Yhteysvirhe: %s", e)
+                    sys.exit(1)
+            else:
+                log.error("Päivä %s epäonnistui 3 yrityksellä — ohitetaan.", current)
 
         current += timedelta(days=1)
 
