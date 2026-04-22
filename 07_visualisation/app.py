@@ -146,7 +146,7 @@ with st.sidebar:
     st.divider()
     late_threshold = st.slider("Myöhässä-raja (min)", 1, 10, 3)
     min_stops = st.slider("Min. pysähdyksiä asemalla", 10, 200, 50)
-    top_n = st.slider("Top/Bottom N asemaa", 5, 20, 10)
+    top_n = st.slider("Näytettävien asemien määrä", 5, 20, 10)
     st.divider()
     st.caption("Datalähde: VR Avoin data")
 
@@ -191,7 +191,7 @@ with tab_map:
     st.subheader("Asemien täsmällisyys kartalla")
     st.caption("Ympyrän koko = pysähdysten määrä · väri = täsmällisyysprosentti")
 
-    fig_map = px.scatter_mapbox(
+    fig_map = px.scatter_map(
         station_df,
         lat="latitude",
         lon="longitude",
@@ -220,7 +220,7 @@ with tab_map:
         size_max=25,
         zoom=5,
         center={"lat": 64.5, "lon": 26.0},
-        mapbox_style="carto-positron",
+        map_style="carto-positron",
         height=620,
     )
     fig_map.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0},
@@ -295,7 +295,7 @@ with tab_daily:
     st.caption("🔵 Viikonloppu · 🔴 Arkipäivä")
 
     st.subheader("Junamäärä viikonpäivittäin")
-    st.caption("Selittääkö suurempi junamäärä perjantain myöhästymiset?")
+    st.caption("Vaikuttaako junamäärä täsmällisyyteen?")
 
     weekday_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     weekday_fi = {
@@ -352,7 +352,7 @@ with tab_daily:
 # ── Asemat ────────────────────────────────────────────────────────────────────
 
 with tab_stations:
-    st.subheader(f" {top_n} täsmällisintä ja vähiten täsmällisintä asemaa")
+    st.subheader(f"Parhaat ja heikoiten suoriutuvat asemat – top {top_n}")
 
     best = station_df.head(top_n)
     worst = station_df.tail(top_n).sort_values("punctuality_pct")
@@ -376,10 +376,10 @@ with tab_stations:
                 "avg_delay_minutes": "Keskim. myöhästyminen",
                 "stop_count": "Pysähdyksiä",
             },
-            title=f"✅ {top_n} Eniten täsmällisintä",
+            title=f"✅ Täsmällisimmät {top_n} asemaa",
         )
         fig_best.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-        fig_best.update_layout(coloraxis_showscale=False, height=400,
+        fig_best.update_layout(coloraxis_showscale=False, height=max(400, top_n * 38),
                                xaxis_range=[0, 105])
         st.plotly_chart(fig_best, width='stretch')
 
@@ -400,10 +400,10 @@ with tab_stations:
                 "avg_delay_minutes": "Keskim. myöhästyminen",
                 "stop_count": "Pysähdyksiä",
             },
-            title=f"❌ {top_n} Vähiten täsmällisintä",
+            title=f"❌ Myöhästyvimmät {top_n} asemat",
         )
         fig_worst.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-        fig_worst.update_layout(coloraxis_showscale=False, height=400,
+        fig_worst.update_layout(coloraxis_showscale=False, height=max(400, top_n * 38),
                                 xaxis_range=[0, 105])
         st.plotly_chart(fig_worst, width='stretch')
 
@@ -465,9 +465,9 @@ with tab_station:
 
     station_options = {
         f"{row['station_name']} ({row['station_code']})": row["station_code"]
-        for _, row in station_df.iterrows()
+        for _, row in station_df.sort_values("station_name").iterrows()
     }
-    selected_label = st.selectbox("Valitse asema", list(station_options.keys()))
+    selected_label = st.selectbox("Valitse asema", sorted(station_options.keys()))
     selected_code = station_options[selected_label]
 
     sdf = load_station_daily(conn, selected_code)
