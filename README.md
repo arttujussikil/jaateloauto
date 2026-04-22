@@ -110,8 +110,8 @@ Hakee reaaliaikaiset sijaintitiedot suoraan Digitraffic-rajapinnasta napin paina
 
 ```bash
 # Kloonaa repo ja siirry kansioon
-git clone <repo-url>
-cd vr-data-platform
+git clone https://github.com/arttujussikil/jaateloauto.git
+cd jaateloauto
 
 # Luo virtuaaliympäristö ja asenna riippuvuudet yhdellä komennolla
 uv sync --extra dev
@@ -126,9 +126,11 @@ source .venv/Scripts/activate    # Windows (Git Bash)
 ### 2. Ympäristömuuttujat
 
 ```bash
-cp .env.example .env
-# Muokkaa .env tarvittaessa (API ei vaadi avainta, mutta User-header on pakollinen)
+cp .env.example .env       # Linux/Mac/Git Bash
+copy .env.example .env     # Windows (Command Prompt)
 ```
+
+Muokkaa `.env` tarvittaessa — API ei vaadi avainta, mutta `Digitraffic-User`-header on pakollinen ja asetetaan automaattisesti oletusarvolla.
 
 ### 3. Aja dataputki
 
