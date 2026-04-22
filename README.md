@@ -2,6 +2,24 @@
 
 Dataputki, joka hakee junaliikenteen tiedot Digitrafficin avoimesta rajapinnasta ja jalostaa ne analysoitavaksi ja visualisoitavaksi dataksi.
 
+## Sisällys
+
+- [Projektin tavoite](#projektin-tavoite)
+- [Arkkitehtuuri](#arkkitehtuuri)
+- [Tietomalli (silver-kerros)](#tietomalli-silver-kerros)
+- [Streamlit-dashboard](#streamlit-dashboard)
+- [Pikaohje](#pikaohje)
+  - [1. Asennus](#1-asennus)
+  - [2. Ympäristömuuttujat](#2-ympäristömuuttujat)
+  - [3. Aja dataputki](#3-aja-dataputki)
+  - [4. Testit](#4-testit)
+- [Hakemistorakenne](#hakemistorakenne)
+- [Riippuvuudet](#riippuvuudet)
+- [Huomioita API-käytöstä](#huomioita-api-käytöstä)
+- [Datalähde ja lisenssi](#datalähde-ja-lisenssi)
+- [dbt-dokumentaatio](#dbt-dokumentaatio)
+- [Tuki ja kehitysehdotukset](#tuki-ja-kehitysehdotukset)
+
 ## Projektin tavoite
 
 Vastata kysymyksiin kuten:
