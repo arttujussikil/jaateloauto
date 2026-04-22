@@ -118,7 +118,9 @@ uv sync --extra dev
 
 # Aktivoi ympäristö
 source .venv/bin/activate        # Linux/Mac
-# .venv\Scripts\activate         # Windows
+source .venv/Scripts/activate    # Windows (Git Bash)
+.venv\Scripts\activate           # Windows (Command Prompt)
+.venv\Scripts\Activate.ps1       # Windows (PowerShell)
 ```
 
 ### 2. Ympäristömuuttujat
