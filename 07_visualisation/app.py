@@ -225,7 +225,7 @@ with tab_map:
     )
     fig_map.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0},
                           coloraxis_colorbar_title="Täsmällisyys %")
-    st.plotly_chart(fig_map, use_container_width=True)
+    st.plotly_chart(fig_map, width='stretch')
 
     with st.expander("Näytä data-taulukko"):
         st.dataframe(
@@ -237,7 +237,7 @@ with tab_map:
                 "stop_count": "Pysähdyksiä",
                 "max_delay_minutes": "Suurin myöhästyminen",
             }),
-            use_container_width=True,
+            width='stretch',
             hide_index=True,
         )
 
@@ -290,7 +290,7 @@ with tab_daily:
         height=500, showlegend=False,
         hovermode="x unified",
     )
-    st.plotly_chart(fig_daily, use_container_width=True)
+    st.plotly_chart(fig_daily, width='stretch')
 
     st.caption("🔵 Viikonloppu · 🔴 Arkipäivä")
 
@@ -327,7 +327,7 @@ with tab_stations:
         fig_best.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
         fig_best.update_layout(coloraxis_showscale=False, height=400,
                                xaxis_range=[0, 105])
-        st.plotly_chart(fig_best, use_container_width=True)
+        st.plotly_chart(fig_best, width='stretch')
 
     with col_worst:
         fig_worst = px.bar(
@@ -351,7 +351,7 @@ with tab_stations:
         fig_worst.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
         fig_worst.update_layout(coloraxis_showscale=False, height=400,
                                 xaxis_range=[0, 105])
-        st.plotly_chart(fig_worst, use_container_width=True)
+        st.plotly_chart(fig_worst, width='stretch')
 
 
 # ── Myöhästymisjakauma ────────────────────────────────────────────────────────
@@ -373,7 +373,7 @@ with tab_dist:
         fig_hist.add_vline(x=late_threshold, line_dash="dash", line_color="#d9534f",
                            annotation_text=f"Raja {late_threshold} min")
         fig_hist.add_vline(x=0, line_color="#555", line_width=1)
-        st.plotly_chart(fig_hist, use_container_width=True)
+        st.plotly_chart(fig_hist, width='stretch')
 
     with col_cdf:
         sorted_d = delay_df["difference_minutes"].sort_values().reset_index(drop=True)
@@ -393,7 +393,7 @@ with tab_dist:
             yaxis_title="Kumulatiivinen osuus (%)",
             yaxis_ticksuffix="%",
         )
-        st.plotly_chart(fig_cdf, use_container_width=True)
+        st.plotly_chart(fig_cdf, width='stretch')
 
     med = delay_df["difference_minutes"].median()
     p95 = delay_df["difference_minutes"].quantile(0.95)
@@ -454,12 +454,12 @@ with tab_station:
             row=2, col=1,
         )
         fig_s.update_layout(height=450, showlegend=False, hovermode="x unified")
-        st.plotly_chart(fig_s, use_container_width=True)
+        st.plotly_chart(fig_s, width='stretch')
 
 
 # ── Live-seuranta ─────────────────────────────────────────────────────────────
 
-with tab_live:
+def live_tab_content():
     st.subheader("Junien sijaintitiedot reaaliajassa")
     st.caption("Datalähde: Digitraffic / Fintraffic · Päivitä manuaalisesti alla olevalla napilla")
 
@@ -512,3 +512,7 @@ with tab_live:
             ).add_to(mc)
         mc.add_to(m)
         st_folium(m, height=640, use_container_width=True)
+
+
+with tab_live:
+    live_tab_content()
