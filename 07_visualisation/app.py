@@ -1,5 +1,6 @@
 """VR Täsmällisyys — Streamlit-dashboard"""
 
+import json
 import duckdb
 import pandas as pd
 import plotly.express as px
@@ -13,6 +14,8 @@ from streamlit_folium import st_folium
 from pathlib import Path
 
 DUCKDB_PATH = Path(__file__).parent.parent / "04_silver" / "vr_warehouse.duckdb"
+STAGING_DIR = Path(__file__).parent.parent / "02_staging" / "data"
+BRONZE_DIR = Path(__file__).parent.parent / "03_bronze" / "data"
 
 st.set_page_config(
     page_title="VR Täsmällisyys",
@@ -205,6 +208,79 @@ def load_station_names(_conn) -> dict:
         FROM gold.gold_station_punctuality
     """).df()
     return dict(zip(df["station_code"], df["station_name"]))
+
+
+@st.cache_data(ttl=300)
+def load_json_sample(n_trains: int = 3) -> tuple[list, int]:
+    files = sorted(STAGING_DIR.glob("trains_*.json"), reverse=True)
+    if not files:
+        return [], 0
+    with open(files[0]) as f:
+        trains = json.load(f)
+    sample = []
+    for t in trains[:n_trains]:
+        s = {k: v for k, v in t.items() if k != "timeTableRows"}
+        rows = t.get("timeTableRows", [])
+        s["timeTableRows (sample)"] = rows[:2]
+        s["_total_stops"] = len(rows)
+        sample.append(s)
+    return sample, len(trains)
+
+
+@st.cache_data(ttl=300)
+def load_bronze_sample(n_rows: int = 8) -> pd.DataFrame:
+    files = sorted(BRONZE_DIR.glob("trains_*.parquet"), reverse=True)
+    if not files:
+        return pd.DataFrame()
+    try:
+        df = pd.read_parquet(files[0])
+        cols = ["trainNumber", "departureDate", "trainType", "stationShortCode",
+                "type", "scheduledTime", "actualTime", "differenceInMinutes",
+                "trainCancelled", "cancelled"]
+        return df[[c for c in cols if c in df.columns]].head(n_rows)
+    except Exception:
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=300)
+def load_raw_fact_sample(_conn, n_rows: int = 8) -> pd.DataFrame:
+    try:
+        return _conn.execute(f"""
+            SELECT stop_id, train_key, station_code, stop_type,
+                   scheduled_time, actual_time, difference_minutes, cancelled
+            FROM raw.raw_fact_train_stops LIMIT {n_rows}
+        """).df()
+    except Exception:
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=300)
+def load_silver_fact_sample(_conn, n_rows: int = 8) -> pd.DataFrame:
+    try:
+        return _conn.execute(f"""
+            SELECT stop_id, train_key, station_code, stop_type,
+                   scheduled_time, actual_time, difference_minutes, cancelled, is_late
+            FROM silver.fact_train_stops LIMIT {n_rows}
+        """).df()
+    except Exception:
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=300)
+def load_pipeline_counts(_conn) -> dict:
+    result: dict = {"JSON-tiedostoja": len(list(STAGING_DIR.glob("trains_*.json")))}
+    for label, query in [
+        ("Raw pysähdykset", "SELECT COUNT(*) FROM raw.raw_fact_train_stops"),
+        ("Raw junat", "SELECT COUNT(*) FROM raw.raw_dim_trains"),
+        ("Silver pysähdykset", "SELECT COUNT(*) FROM silver.fact_train_stops"),
+        ("Gold asemat", "SELECT COUNT(*) FROM gold.gold_station_punctuality"),
+        ("Gold päivät", "SELECT COUNT(*) FROM gold.gold_daily_punctuality"),
+    ]:
+        try:
+            result[label] = _conn.execute(query).fetchone()[0]
+        except Exception:
+            result[label] = None
+    return result
 
 
 def load_live_trains(station_names: dict, station_coords: dict) -> tuple[pd.DataFrame, dict]:
@@ -403,8 +479,8 @@ st.divider()
 
 # ── Välilehdet ────────────────────────────────────────────────────────────────
 
-tab_map, tab_daily, tab_stations, tab_dist, tab_station, tab_live = st.tabs([
-    "🗺️ Kartta", "📅 Päivittäinen", "🏢 Asemat", "📊 Jakauma", "🔍 Asema-analyysi", "🔴 Live"
+tab_map, tab_daily, tab_stations, tab_dist, tab_station, tab_pipeline, tab_live = st.tabs([
+    "🗺️ Kartta", "📅 Päivittäinen", "🏢 Asemat", "📊 Jakauma", "🔍 Asema-analyysi", "🔬 Pipeline", "🔴 Live"
 ])
 
 
@@ -732,6 +808,132 @@ with tab_station:
         )
         fig_s.update_layout(height=450, showlegend=False, hovermode="x unified")
         st.plotly_chart(fig_s, width='stretch')
+
+
+# ── Pipeline-katsaus ─────────────────────────────────────────────────────────
+
+with tab_pipeline:
+    st.subheader("Data-putki: raakadatasta visualisointiin")
+    st.caption("Seuraa miten sama data muuttuu vaihe vaiheelta API-vastauksesta lopullisiin tilastoihin")
+
+    # Pipeline overview with row counts
+    counts = load_pipeline_counts(conn)
+
+    ov1, ov2, ov3, ov4, ov5 = st.columns(5)
+    ov1.metric("📦 JSON-tiedostoja", counts.get("JSON-tiedostoja", "?"))
+    raw_n = counts.get("Raw pysähdykset")
+    ov2.metric("🟫 Raw pysähdykset", f"{raw_n:,}" if raw_n else "?")
+    sil_n = counts.get("Silver pysähdykset")
+    ov3.metric("🥈 Silver pysähdykset", f"{sil_n:,}" if sil_n else "?")
+    gold_a = counts.get("Gold asemat")
+    ov4.metric("🥇 Gold asemat", gold_a if gold_a else "?")
+    gold_d = counts.get("Gold päivät")
+    ov5.metric("🥇 Gold päivät", gold_d if gold_d else "?")
+
+    st.divider()
+
+    # ── Muutos 1: JSON → Bronze ───────────────────────────────────────────────
+    st.markdown("### 1 → 2 · JSON → Bronze: sisäkkäinen rakenne → tasainen taulukko")
+    st.caption("Digitraffic palauttaa jokaisen junan yhtenä JSON-objektina, jossa `timeTableRows` sisältää kaikki pysäkit listana. Bronze-vaiheessa tämä lista räjäytetään (explode) niin, että jokainen pysäkki saa oman rivin.")
+
+    col_json, col_bronze = st.columns(2)
+
+    with col_json:
+        st.markdown("**Ennen — raaka JSON (1 juna, 1 pysäkki)**")
+        json_sample, total_trains = load_json_sample(n_trains=1)
+        if json_sample:
+            train = json_sample[0]
+            top_level = {k: v for k, v in train.items() if k not in ("timeTableRows (sample)", "_total_stops")}
+            st.json(top_level, expanded=True)
+            st.caption(f"timeTableRows-kentässä {train['_total_stops']} pysäkkiä — esimerkki yhdestä:")
+            if train.get("timeTableRows (sample)"):
+                st.json(train["timeTableRows (sample)"][0], expanded=True)
+        else:
+            st.warning("JSON-tiedostoja ei löydy hakemistosta 02_staging/data/")
+
+    with col_bronze:
+        st.markdown("**Jälkeen — Bronze Parquet (yksi rivi per pysäkki)**")
+        bronze_df = load_bronze_sample()
+        if not bronze_df.empty:
+            st.dataframe(bronze_df, hide_index=True, height=420)
+            st.caption(f"Jokainen rivi = yksi pysäkki · sarake `type` = ARRIVAL/DEPARTURE")
+        else:
+            st.warning("Bronze-tiedostoja ei löydy hakemistosta 03_bronze/data/")
+
+    st.divider()
+
+    # ── Muutos 2: Raw → Silver: is_late-lippu ────────────────────────────────
+    st.markdown("### 3 → 4 · Raw → Silver: tähtimalli + myöhässä-lippu")
+    st.caption("dbt lisää `is_late`-kentän: TRUE jos myöhästyminen yli 3 min (VR:n virallinen raja), FALSE jos täsmällinen, NULL jos toteutunutta aikaa ei vielä ole.")
+
+    col_raw, col_silver = st.columns(2)
+
+    with col_raw:
+        st.markdown("**Ennen — raw.raw_fact_train_stops**")
+        raw_df = load_raw_fact_sample(conn)
+        if not raw_df.empty:
+            st.dataframe(raw_df, hide_index=True, height=300)
+            st.caption("Ei `is_late`-kenttää — pelkkä `difference_minutes`")
+        else:
+            st.warning("raw.raw_fact_train_stops ei löydy")
+
+    with col_silver:
+        st.markdown("**Jälkeen — silver.fact_train_stops**")
+        silver_df = load_silver_fact_sample(conn)
+        if not silver_df.empty:
+            st.dataframe(silver_df, hide_index=True, height=300)
+            st.caption("`is_late` = liiketoimintalogiikka sovellettuna · TRUE / FALSE / NULL")
+        else:
+            st.warning("silver.fact_train_stops ei löydy")
+
+    st.divider()
+
+    # ── Muutos 3: Silver → Gold: aggregointi ─────────────────────────────────
+    st.markdown("### 4 → 5 · Silver → Gold: yksittäiset pysähdykset → asematilastot")
+    st.caption("Tuhannet yksittäiset pysähdykset tiivistetään per asema: täsmällisyysprosentti, keskimääräinen myöhästyminen, mediaani, maksimi. Esimerkki: Helsinki (HKI).")
+
+    col_sil_hki, col_gold_hki = st.columns(2)
+
+    with col_sil_hki:
+        st.markdown("**Ennen — silver, Helsinki (HKI), ARRIVAL**")
+        try:
+            hki_silver = conn.execute("""
+                SELECT stop_id, departure_date, difference_minutes, is_late
+                FROM silver.fact_train_stops
+                WHERE station_code = 'HKI'
+                  AND stop_type = 'ARRIVAL'
+                  AND actual_time IS NOT NULL
+                LIMIT 10
+            """).df()
+            st.dataframe(hki_silver, hide_index=True, height=360)
+            hki_total = conn.execute("""
+                SELECT COUNT(*) FROM silver.fact_train_stops
+                WHERE station_code = 'HKI' AND stop_type = 'ARRIVAL' AND actual_time IS NOT NULL
+            """).fetchone()[0]
+            st.caption(f"HKI:llä yhteensä {hki_total:,} ARRIVAL-pysähdystä — näytetään 10")
+        except Exception:
+            st.warning("Dataa ei löydy")
+
+    with col_gold_hki:
+        st.markdown("**Jälkeen — gold.gold_station_punctuality, Helsinki**")
+        try:
+            hki_gold = conn.execute("""
+                SELECT station_name, stop_count, punctuality_pct,
+                       avg_delay_minutes, median_delay_minutes, max_delay_minutes
+                FROM gold.gold_station_punctuality
+                WHERE station_code = 'HKI'
+            """).df()
+            st.dataframe(hki_gold, hide_index=True)
+            st.caption("Kaikki pysähdykset tiivistetty yhteen tilastoriviin per asema")
+        except Exception:
+            st.warning("gold.gold_station_punctuality ei löydy")
+
+        st.markdown("**Gold-taulukko (5 asemaa):**")
+        st.dataframe(
+            station_df.head(5)[["station_name", "stop_count", "punctuality_pct",
+                                 "avg_delay_minutes", "median_delay_minutes"]],
+            hide_index=True,
+        )
 
 
 # ── Live-seuranta ─────────────────────────────────────────────────────────────
