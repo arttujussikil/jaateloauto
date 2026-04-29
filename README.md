@@ -201,7 +201,7 @@ pytest --cov=. --cov-report=html
 | `06_transform/` | dbt-projekti (mallit, testit, dokumentaatio) |
 | `07_visualisation/` | Streamlit-dashboard (`app.py`) + Jupyter Notebook |
 | `tests/` | Yksikkötestit (pytest) |
-| `docs/` | Lisädokumentaatio |
+| `docs/` | [Jatkokehitys, haasteet ja rajoitukset](docs/jatkokehitys.md) |
 
 ## Riippuvuudet
 
